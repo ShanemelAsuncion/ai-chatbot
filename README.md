@@ -71,6 +71,12 @@ ai-chatbot/
    - Navigate to the local URL provided by Streamlit (typically http://localhost:8501)
    - Use the chat interface to start conversing with the AI
 
+## UI
+
+![AI Chatbot Interface](assets/screenshot.png)
+
+- Modern UI built with Streamlit
+
 ## Security Notes
 
 - Keep your OpenAI API key confidential
