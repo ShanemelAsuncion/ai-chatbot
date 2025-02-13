@@ -15,6 +15,7 @@ class DocumentProcessor:
         self.pc = Pinecone(api_key=pinecone_api_key)
         self.index = self.pc.Index(index_name)
         self.openai_client = OpenAI(api_key=openai_api_key)
+        self.index_name = index_name
 
     @staticmethod
     def chunk_text(text: str, max_chunk_size: int = 1000) -> List[str]:
@@ -71,12 +72,16 @@ class DocumentProcessor:
                     all_vectors.append(vector_data)
             
             # Batch upsert to Pinecone
-            batch_size = 100
-            for i in range(0, len(all_vectors), batch_size):
-                batch = all_vectors[i:i + batch_size]
-                self.index.upsert(vectors=batch)
-            
-            return True
+            if all_vectors:
+                batch_size = 100
+                for i in range(0, len(all_vectors), batch_size):
+                    batch = all_vectors[i:i + batch_size]
+                    self.index.upsert(vectors=batch)
+                return True
+            else:
+                st.warning("No documents found in the specified directory.")
+                return False
+                
         except Exception as e:
             st.error(f"Error processing documents: {str(e)}")
             return False
@@ -123,8 +128,12 @@ class DocumentProcessor:
 @st.cache_resource
 def get_document_processor() -> DocumentProcessor:
     """Get or create a DocumentProcessor instance with caching."""
-    return DocumentProcessor(
-        openai_api_key=st.secrets["OPENAI_API_KEY"],
-        pinecone_api_key=st.secrets["PINECONE_API_KEY"],
-        index_name="ghw-rag-aiml"
-    )
+    try:
+        return DocumentProcessor(
+            openai_api_key=st.secrets["OPENAI_API_KEY"],
+            pinecone_api_key=st.secrets["PINECONE_API_KEY"],
+            index_name="ghw-rag-aiml"
+        )
+    except Exception as e:
+        st.error(f"Error initializing document processor: {str(e)}")
+        return None

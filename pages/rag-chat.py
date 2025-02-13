@@ -7,14 +7,18 @@ st.set_page_config(
     layout="wide"
 )
 
+# Initialize the document processor
+processor = get_document_processor()
+
+if not processor:
+    st.error("Failed to initialize the chatbot. Please check your API keys and try again.")
+    st.stop()
+
 st.title("🤖 RAG-Enhanced Chatbot")
 st.markdown("""
 This chatbot uses Retrieval Augmented Generation (RAG) to provide accurate answers based on your documents.
 Upload PDF documents and ask questions about their content!
 """)
-
-# Initialize the document processor
-processor = get_document_processor()
 
 # Document upload and processing section
 with st.sidebar:
