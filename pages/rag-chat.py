@@ -1,87 +1,93 @@
 import streamlit as st
-from utils import RAGChatbot
-import os
+from utils import get_document_processor
 
-st.title("📚 RAG-Enhanced Chatbot")
-st.write("This chatbot uses Retrieval Augmented Generation (RAG) to provide more accurate and contextual responses.")
-
-# Initialize session state for chatbot
-if "rag_chatbot" not in st.session_state:
-    st.session_state.rag_chatbot = RAGChatbot(
-        pinecone_api_key=st.secrets["PINECONE_API_KEY"],
-        pinecone_environment=st.secrets["PINECONE_ENVIRONMENT"],
-        index_name="ai-chatbot-mlh"
-    )
-
-# File uploader for document ingestion
-st.sidebar.header("📄 Document Upload")
-uploaded_files = st.sidebar.file_uploader(
-    "Upload documents for the chatbot to learn from",
-    accept_multiple_files=True,
-    type=["txt", "pdf"]
+st.set_page_config(
+    page_title="RAG Chatbot",
+    page_icon="🤖",
+    layout="wide"
 )
 
-if uploaded_files:
-    # Create a temporary directory for uploaded files
-    if not os.path.exists("temp_docs"):
-        os.makedirs("temp_docs")
+st.title("🤖 RAG-Enhanced Chatbot")
+st.markdown("""
+This chatbot uses Retrieval Augmented Generation (RAG) to provide accurate answers based on your documents.
+Upload PDF documents and ask questions about their content!
+""")
+
+# Initialize the document processor
+processor = get_document_processor()
+
+# Document upload and processing section
+with st.sidebar:
+    st.header("📄 Document Management")
+    pdf_dir = st.text_input("PDF Directory Path", value="pdf", help="Enter the path to your PDF documents directory")
     
-    # Save uploaded files to temporary directory
-    for file in uploaded_files:
-        with open(os.path.join("temp_docs", file.name), "wb") as f:
-            f.write(file.getbuffer())
-    
-    if st.sidebar.button("Process Documents"):
+    if st.button("Process Documents", key="process_docs"):
         with st.spinner("Processing documents..."):
-            st.session_state.rag_chatbot.ingest_documents("temp_docs")
-        st.sidebar.success("Documents processed successfully!")
+            success = processor.process_documents(pdf_dir)
+            if success:
+                st.success("✅ Documents processed successfully!")
+                st.session_state.docs_processed = True
+            else:
+                st.error("❌ Failed to process documents. Please check the directory path and try again.")
 
-# Chat interface
-st.header("💬 Chat")
-
-# Initialize chat history
+# Initialize session state for chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
+    st.session_state.docs_processed = False
+
+# Chat interface
+st.divider()
 
 # Display chat history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if "sources" in message:
+            with st.expander("View Sources"):
+                for i, source in enumerate(message["sources"], 1):
+                    st.markdown(f"**Source {i}:**\n{source['text']}\n\n")
 
 # Chat input
-if prompt := st.chat_input("Ask a question about your documents..."):
+if prompt := st.chat_input("Ask a question about your documents...", key="chat_input"):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
+    
+    # Display user message
     with st.chat_message("user"):
         st.markdown(prompt)
     
-    # Get chatbot response
+    # Generate and display response
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = st.session_state.rag_chatbot.get_response(prompt)
-            st.markdown(response["answer"])
-            
-            # Display sources if available
-            if response["sources"]:
-                with st.expander("View Sources"):
-                    for i, source in enumerate(response["sources"], 1):
-                        st.markdown(f"**Source {i}:**\n{source}\n---")
+        if not st.session_state.docs_processed:
+            st.warning("⚠️ Please process some documents first!")
+        else:
+            with st.spinner("Thinking..."):
+                response = processor.query_documents(prompt)
+                if response:
+                    st.markdown(response["answer"])
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": response["answer"],
+                        "sources": response["sources"]
+                    })
+                else:
+                    st.error("❌ Sorry, I couldn't find relevant information to answer your question.")
 
 # Sidebar controls
-st.sidebar.header("🔧 Controls")
-if st.sidebar.button("Clear Chat History"):
-    st.session_state.messages = []
-    st.session_state.rag_chatbot.clear_history()
-    st.sidebar.success("Chat history cleared!")
-
-# Add some helpful information
-st.sidebar.header("ℹ️ Information")
-st.sidebar.info(
-    """
-    This chatbot uses RAG (Retrieval Augmented Generation) to provide more accurate responses 
-    by referencing your uploaded documents. To use it:
-    1. Upload your documents using the file uploader above
+with st.sidebar:
+    st.divider()
+    st.header("🔧 Controls")
+    if st.button("Clear Chat History"):
+        st.session_state.messages = []
+        st.success("Chat history cleared!")
+    
+    # Help section
+    st.divider()
+    st.header("ℹ️ Help")
+    st.markdown("""
+    **How to use:**
+    1. Enter the path to your PDF documents
     2. Click 'Process Documents' to analyze them
-    3. Ask questions about your documents in the chat
-    """
-)
+    3. Ask questions in the chat
+    4. Click 'View Sources' to see reference text
+    """)
