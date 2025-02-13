@@ -6,7 +6,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import DirectoryLoader, TextLoader
-import pinecone
+from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
 
 """
@@ -27,18 +27,22 @@ class RAGChatbot:
     def __init__(self, pinecone_api_key: str, pinecone_environment: str, index_name: str):
         """Initialize the RAG chatbot with necessary configurations."""
         
-        # Initialize Pinecone
-        pinecone.init(api_key=pinecone_api_key, environment=pinecone_environment)
+        # Initialize Pinecone with new method
+        self.pc = Pinecone(api_key=pinecone_api_key)
         
         # Initialize OpenAI embeddings
         self.embeddings = OpenAIEmbeddings()
         
         # Get or create Pinecone index
-        if index_name not in pinecone.list_indexes():
-            pinecone.create_index(
+        if index_name not in self.pc.list_indexes().names():
+            self.pc.create_index(
                 name=index_name,
                 dimension=1536,  # OpenAI embedding dimension
-                metric='cosine'
+                metric='cosine',
+                spec=ServerlessSpec(
+                    cloud='aws',
+                    region=pinecone_environment
+                )
             )
         
         # Initialize vector store
@@ -112,5 +116,3 @@ class RAGChatbot:
     def clear_history(self) -> None:
         """Clear the conversation history."""
         self.chat_history = []
-
-
