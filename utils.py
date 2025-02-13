@@ -1,3 +1,8 @@
+"""
+Core utilities for the RAG (Retrieval Augmented Generation) chatbot system.
+This module handles document processing, embedding generation, and vector storage/retrieval.
+"""
+
 from typing import List, Dict, Any, Optional
 import streamlit as st
 from langchain.embeddings.openai import OpenAIEmbeddings
@@ -9,8 +14,21 @@ from functools import lru_cache
 import os
 
 class DocumentProcessor:
+    """
+    Main class for processing documents, generating embeddings, and handling RAG operations.
+    Integrates with OpenAI for embeddings/chat and Pinecone for vector storage.
+    """
+    
     def __init__(self, openai_api_key: str, pinecone_api_key: str, index_name: str):
-        """Initialize document processor with necessary API keys and configurations."""
+        """
+        Initialize the document processor with necessary API keys and configurations.
+        
+        Args:
+            openai_api_key: API key for OpenAI services
+            pinecone_api_key: API key for Pinecone vector database
+            index_name: Name of the Pinecone index to use/create
+        """
+
         self.openai_api_key = openai_api_key
         self.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
         self.pc = Pinecone(api_key=pinecone_api_key)
@@ -33,7 +51,18 @@ class DocumentProcessor:
 
     @staticmethod
     def chunk_text(text: str, max_chunk_size: int = 1000) -> List[str]:
-        """Split text into chunks of maximum size while preserving paragraph structure."""
+        """
+        Split text into semantically meaningful chunks while preserving paragraph structure.
+        This is crucial for RAG as it determines the context windows for retrieval.
+        
+        Args:
+            text: The input text to chunk
+            max_chunk_size: Maximum size of each chunk in characters
+            
+        Returns:
+            List of text chunks, each preserving paragraph structure
+        """
+
         if not text.endswith("\n\n"):
             text += "\n\n"
         
@@ -54,11 +83,36 @@ class DocumentProcessor:
 
     @lru_cache(maxsize=100)
     def generate_embeddings(self, text: str) -> List[float]:
-        """Generate embeddings for a text chunk with caching for efficiency."""
+        """
+        Generate embeddings for a text chunk with LRU caching for efficiency.
+        Uses OpenAI's text embedding model to create vector representations.
+        
+        Args:
+            text: Text to generate embeddings for
+            
+        Returns:
+            List of floating point numbers representing the text embedding
+        """
+
         return self.embeddings.embed_query(text)
 
     def process_documents(self, directory: str) -> bool:
-        """Process documents from a directory and store in Pinecone."""
+        """
+        Process PDF documents from a directory and store their vector representations in Pinecone.
+        
+        The process involves:
+        1. Loading PDFs from the directory
+        2. Chunking the text content
+        3. Generating embeddings for each chunk
+        4. Storing vectors with metadata in Pinecone
+        
+        Args:
+            directory: Path to directory containing PDF files
+            
+        Returns:
+            bool: True if processing succeeded, False otherwise
+        """
+
         try:
             # Verify directory exists and contains PDF files
             if not os.path.exists(directory):
@@ -119,7 +173,22 @@ class DocumentProcessor:
             return False
 
     def query_documents(self, query: str, top_k: int = 3) -> Optional[Dict[str, Any]]:
-        """Query documents with error handling and response generation."""
+        """
+        Perform RAG query operation to answer questions based on stored documents.
+        
+        The process:
+        1. Generate embedding for the query
+        2. Find most similar chunks in Pinecone
+        3. Use retrieved context with GPT to generate an answer
+        
+        Args:
+            query: User's question
+            top_k: Number of most relevant chunks to retrieve
+            
+        Returns:
+            Dict containing the answer and source information, or None if query fails
+        """
+
         try:
             # Generate query embeddings
             query_embedding = self.generate_embeddings(query)
@@ -159,10 +228,16 @@ class DocumentProcessor:
             st.error(f"Error querying documents: {str(e)}")
             return None
 
-# Initialize processor with API keys from Streamlit secrets
 @st.cache_resource
 def get_document_processor() -> DocumentProcessor:
-    """Get or create a DocumentProcessor instance with caching."""
+    """
+    Create or retrieve a cached DocumentProcessor instance.
+    Uses Streamlit's caching to maintain a single instance across reruns.
+    
+    Returns:
+        DocumentProcessor instance or None if initialization fails
+    """
+
     try:
         return DocumentProcessor(
             openai_api_key=st.secrets["OPENAI_API_KEY"],
