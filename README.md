@@ -117,9 +117,13 @@ A powerful chatbot application built with Streamlit that combines traditional ch
 - `langchain-community`: Additional LangChain components
 
 ## UI
-![Home](assets\Screenshot 2025-02-13 073327.png)
-![chat](assets\Screenshot 2025-02-13 073339.png)
-![rag-chat](assets\Screenshot 2025-02-13 073358.png)
+
+![Home](assets/Screenshot%202025-02-13%20073327.png)
+
+![chat](assets/Screenshot%202025-02-13%20073339.png)
+
+![rag-chat](assets/Screenshot%202025-02-13%20073358.png)
+
 
 ## Contributing
 
