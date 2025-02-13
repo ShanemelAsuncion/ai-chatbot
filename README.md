@@ -120,7 +120,7 @@ The RAG (Retrieval Augmented Generation) version of the chatbot provides intelli
 
 3. **Run the App**:
    ```bash
-   streamlit run app.py
+   streamlit run home.py
    ```
 
 4. **Using the Chatbot**:
