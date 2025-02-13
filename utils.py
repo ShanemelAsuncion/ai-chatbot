@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 import os
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import Pinecone
+from langchain.vectorstores import PineconeVectorStore
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -45,10 +45,14 @@ class RAGChatbot:
                 )
             )
         
+        # Get the index
+        self.index = self.pc.Index(index_name)
+        
         # Initialize vector store
-        self.vectorstore = Pinecone.from_existing_index(
-            index_name=index_name,
-            embedding=self.embeddings
+        self.vectorstore = PineconeVectorStore(
+            index=self.index,
+            embedding=self.embeddings,
+            text_key="text"
         )
         
         # Initialize chat model and conversation chain
