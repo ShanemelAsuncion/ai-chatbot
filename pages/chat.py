@@ -46,7 +46,6 @@ if prompt := st.chat_input("What is up?"):
 
 # Sidebar controls
 with st.sidebar:
-    st.divider()
     st.header("🔧 Controls")
     if st.button("Clear Chat History"):
         st.session_state.messages = []
