@@ -43,7 +43,6 @@ if prompt := st.chat_input("What is up?"):
     # Store assistant response in chat history
     st.session_state.messages.append({"role": "assistant", "content": response})
 
-st.divider()
 
 # Sidebar controls
 with st.sidebar:
