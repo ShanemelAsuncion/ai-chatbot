@@ -132,7 +132,7 @@ def get_document_processor() -> DocumentProcessor:
         return DocumentProcessor(
             openai_api_key=st.secrets["OPENAI_API_KEY"],
             pinecone_api_key=st.secrets["PINECONE_API_KEY"],
-            index_name=st.secrets["PINECONE_ENVIRONMENT"]
+            index_name="ai-chatbot-mlh" 
         )
     except Exception as e:
         st.error(f"Error initializing document processor: {str(e)}")
