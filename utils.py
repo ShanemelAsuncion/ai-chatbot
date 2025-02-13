@@ -2,10 +2,11 @@ from typing import List, Dict, Any, Optional
 import streamlit as st
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFDirectoryLoader
-from pinecone import Pinecone
+from pinecone import Pinecone, ServerlessSpec
 from openai import OpenAI
 import hashlib
 from functools import lru_cache
+import os
 
 class DocumentProcessor:
     def __init__(self, openai_api_key: str, pinecone_api_key: str, index_name: str):
@@ -13,6 +14,19 @@ class DocumentProcessor:
         self.openai_api_key = openai_api_key
         self.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
         self.pc = Pinecone(api_key=pinecone_api_key)
+        
+        # Create index if it doesn't exist
+        if index_name not in self.pc.list_indexes().names():
+            self.pc.create_index(
+                name=index_name,
+                dimension=1536,  # OpenAI embedding dimension
+                metric='cosine',
+                spec=ServerlessSpec(
+                    cloud='aws',
+                    region='us-west-2'
+                )
+            )
+        
         self.index = self.pc.Index(index_name)
         self.openai_client = OpenAI(api_key=openai_api_key)
         self.index_name = index_name
@@ -46,15 +60,32 @@ class DocumentProcessor:
     def process_documents(self, directory: str) -> bool:
         """Process documents from a directory and store in Pinecone."""
         try:
+            # Verify directory exists and contains PDF files
+            if not os.path.exists(directory):
+                st.error(f"Directory {directory} does not exist.")
+                return False
+            
+            pdf_files = [f for f in os.listdir(directory) if f.lower().endswith('.pdf')]
+            if not pdf_files:
+                st.error("No PDF files found in the directory.")
+                return False
+            
             # Load documents
             loader = PyPDFDirectoryLoader(directory)
             documents = loader.load()
             
+            if not documents:
+                st.warning("No content found in the PDF files.")
+                return False
+            
             # Process each document
             all_vectors = []
+            total_chunks = 0
+            
             for doc in documents:
                 # Split into chunks
                 chunks = self.chunk_text(doc.page_content)
+                total_chunks += len(chunks)
                 
                 # Generate embeddings and metadata for each chunk
                 for chunk in chunks:
@@ -66,7 +97,7 @@ class DocumentProcessor:
                         "values": embedding,
                         "metadata": {
                             "text": chunk,
-                            "source": doc.metadata.get("source", "unknown")
+                            "source": os.path.basename(doc.metadata.get("source", "unknown"))
                         }
                     }
                     all_vectors.append(vector_data)
@@ -77,9 +108,10 @@ class DocumentProcessor:
                 for i in range(0, len(all_vectors), batch_size):
                     batch = all_vectors[i:i + batch_size]
                     self.index.upsert(vectors=batch)
+                st.info(f"Processed {len(documents)} documents with {total_chunks} chunks.")
                 return True
             else:
-                st.warning("No documents found in the specified directory.")
+                st.warning("No content was extracted from the documents.")
                 return False
                 
         except Exception as e:
@@ -103,14 +135,17 @@ class DocumentProcessor:
                 return None
             
             # Combine context from top matches
-            context = "\n\n".join([match.metadata["text"] for match in results.matches])
+            context = "\n\n".join([
+                f"From {match.metadata['source']}:\n{match.metadata['text']}"
+                for match in results.matches
+            ])
             
             # Generate response using OpenAI
             completion = self.openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that provides accurate answers based on the given context."},
-                    {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
+                    {"role": "system", "content": "You are a helpful assistant that provides accurate answers based on the given context. Always cite the source document when providing information."},
+                    {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}\n\nProvide a detailed answer and mention which source document the information comes from."}
                 ],
                 temperature=0.7
             )
@@ -132,7 +167,7 @@ def get_document_processor() -> DocumentProcessor:
         return DocumentProcessor(
             openai_api_key=st.secrets["OPENAI_API_KEY"],
             pinecone_api_key=st.secrets["PINECONE_API_KEY"],
-            index_name="ai-chatbot-mlh" 
+            index_name="ai-chatbot-mlh"
         )
     except Exception as e:
         st.error(f"Error initializing document processor: {str(e)}")
